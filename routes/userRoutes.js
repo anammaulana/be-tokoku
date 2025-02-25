@@ -3,8 +3,32 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
+const path = require("path");
+const multer = require("multer");
 
 const router = express.Router();
+
+// Konfigurasi multer untuk upload gambar
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/users"); // Folder tempat menyimpan gambar
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname)); // Rename file dengan timestamp
+  },
+});
+
+// Filter file hanya menerima gambar
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(new Error("File harus berupa gambar!"), false);
+  }
+};
+
+// Middleware upload
+const upload = multer({ storage, fileFilter });
 
 router.post("/register", async (req, res) => {
   try {
@@ -33,7 +57,7 @@ router.post("/login", async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: "Password salah" });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, image: user.image } });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -61,11 +85,19 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 // ✅ Update User (Protected)
-router.put("/:id", auth, async (req, res) => {
+router.put("/:id", upload.single("image"), auth, async (req, res) => {
   try {
     const { name, email } = req.body;
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, { name, email }, { new: true });
-    res.json(updatedUser);
+    const image = req.file ? `/uploads/users/${req.file.filename}` : undefined;
+
+    const updatedUser = { name, email };
+    if (image) updatedUser.image = image;
+
+    const user = await User.findByIdAndUpdate(req.params.id, updatedUser, { new: true });
+   
+    if (!user) return res.status(404).json({ error: "User tidak ditemukan" });
+
+    res.json({ message: "User berhasil diperbarui!", user});
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

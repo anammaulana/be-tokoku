@@ -1,72 +1,101 @@
 const express = require("express");
-const router = express.Router();
+const multer = require("multer");
+const path = require("path");
 const Product = require("../models/Product");
 
-// Get all products
+const router = express.Router();
+
+// Konfigurasi multer untuk upload gambar
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/products"); // Folder tempat menyimpan gambar
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname)); // Rename file dengan timestamp
+  },
+});
+
+// Filter file hanya menerima gambar
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(new Error("File harus berupa gambar!"), false);
+  }
+};
+
+// Middleware upload
+const upload = multer({ storage, fileFilter });
+
+//  GET: Ambil semua produk
 router.get("/", async (req, res) => {
-    console.log("✅ GET /api/products called");  // Log request
-    try {
-      const products = await Product.find();
-      res.json(products);
-    } catch (error) {
-      console.error("❌ Error fetching products:", error);
-      res.status(500).json({ error: "Failed to fetch products" });
-    }
-  });
-  
-
-// Create a new product
-router.post("/", async (req, res) => {
   try {
-    const { name, price, stock } = req.body;
-    
-    if (!name || !price || !stock) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    const product = new Product(req.body);
-    await product.save();
-    res.status(201).json({ message: "Product added!", product });
+    const products = await Product.find();
+    res.json(products);
   } catch (error) {
-    res.status(500).json({ error: "Failed to add product" });
+    res.status(500).json({ error: "Gagal mengambil produk" });
   }
 });
 
-// Get product by ID
+//  POST: Tambah produk dengan gambar
+router.post("/", upload.single("image"), async (req, res) => {
+  try {
+    const { name, price, stock } = req.body;
+    const image = req.file ? `/uploads/products/${req.file.filename}` : null;
+
+    if (!name || !price || !stock) {
+      return res.status(400).json({ error: "Semua field wajib diisi" });
+    }
+
+    const product = new Product({ name, price, stock, image });
+    await product.save();
+    res.status(201).json({ message: "Produk berhasil ditambahkan!", product });
+  } catch (error) {
+    res.status(500).json({ error: "Gagal menambahkan produk" });
+  }
+});
+
+//  GET: Ambil produk berdasarkan ID
 router.get("/:id", async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ error: "Product not found" });
+    if (!product) return res.status(404).json({ error: "Produk tidak ditemukan" });
 
     res.json(product);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch product" });
+    res.status(500).json({ error: "Gagal mengambil produk" });
   }
 });
 
-// Update product by ID
-router.put("/:id", async (req, res) => {
+//  PUT: Update produk berdasarkan ID
+router.put("/:id", upload.single("image"), async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { name, price, stock } = req.body;
+    const image = req.file ? `/uploads/products/${req.file.filename}` : undefined;
 
-    if (!product) return res.status(404).json({ error: "Product not found" });
+    const updatedData = { name, price, stock };
+    if (image) updatedData.image = image;
 
-    res.json({ message: "Product updated!", product });
+    const product = await Product.findByIdAndUpdate(req.params.id, updatedData, { new: true });
+
+    if (!product) return res.status(404).json({ error: "Produk tidak ditemukan" });
+
+    res.json({ message: "Produk berhasil diperbarui!", product });
   } catch (error) {
-    res.status(500).json({ error: "Failed to update product" });
+    res.status(500).json({ error: "Gagal memperbarui produk" });
   }
 });
 
-// Delete product by ID
+//  DELETE: Hapus produk berdasarkan ID
 router.delete("/:id", async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
 
-    if (!product) return res.status(404).json({ error: "Product not found" });
+    if (!product) return res.status(404).json({ error: "Produk tidak ditemukan" });
 
-    res.json({ message: "Product deleted!" });
+    res.json({ message: "Produk berhasil dihapus!" });
   } catch (error) {
-    res.status(500).json({ error: "Failed to delete product" });
+    res.status(500).json({ error: "Gagal menghapus produk" });
   }
 });
 
