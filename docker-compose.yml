@@ -1,19 +1,19 @@
-version: "3.8"
+version: "3"
 
 services:
   backend:
     build: .
     container_name: be-express-app
     ports:
-      - "8002:3000"
+      - "8002:5000"
     environment:
-      - MONGO_URI=mongodb://mongo:27017/tokoku
+       - MONGO_URI=mongodb://mongo-db:27017/tokoku
     depends_on:
-      - mongo
+      - mongo-db  # Ganti dari "mongo" ke "mongo-db"
     networks:
       - app-network
 
-  mongo:
+  mongo-db:  
     image: mongo:4
     container_name: mongo-db
     restart: always

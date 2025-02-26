@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # Expose port yang digunakan oleh Express.js
-EXPOSE 3000
+EXPOSE 3001
 
 # Jalankan aplikasi
 CMD ["node", "server.js"]
